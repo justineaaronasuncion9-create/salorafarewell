@@ -1959,6 +1959,7 @@
       <a href="#flowers">Send Flowers &amp; Gifts</a>
       <a href="#contact">Contact Us</a>
       <a href="#order">Inquire Now</a>
+      <div id="authContainer" style="display: flex; gap: 0.5rem; margin-left: 1rem;"></div>
     </nav>
     <div class="info-bar">
     <div class="info-item"><span>📍</span> <span id="address">Unit 204, NLR Center, Gen. T. de Leon, Valenzuela, Metro Manila</span></div>
@@ -2891,6 +2892,10 @@
     window._useFirestore = false; // flip to true by calling setupFirestore(config)
     window._firestoreReady = null;
     window._userId = null; // Unique user/session ID to track who booked what
+    window._isAdmin = false; // Track if current user is admin
+    window._currentUser = null; // Current logged-in user name
+    window._adminPassword = 'admin123'; // Change this to your admin password
+    window._userPassword = 'user123'; // Change this to your user password
 
     function ensureUserId(){
       if (!window._userId) {
@@ -2904,6 +2909,586 @@
         }
       }
       return window._userId;
+    }
+
+    function checkAdminStatus(){
+      const adminToken = localStorage.getItem('_adminToken');
+      window._isAdmin = adminToken === 'true';
+      const userName = localStorage.getItem('_currentUser');
+      window._currentUser = userName;
+      return window._isAdmin;
+    }
+
+    function checkUserStatus(){
+      const userToken = localStorage.getItem('_userToken');
+      if (userToken === 'true') {
+        window._currentUser = localStorage.getItem('_currentUserName') || 'User';
+        return true;
+      }
+      return false;
+    }
+
+    function isLoggedIn(){
+      return checkAdminStatus() || checkUserStatus();
+    }
+
+    function loginAsAdmin(password){
+      if (password === window._adminPassword) {
+        localStorage.setItem('_adminToken', 'true');
+        localStorage.setItem('_userToken', 'false');
+        localStorage.setItem('_currentUser', 'Admin');
+        window._isAdmin = true;
+        window._currentUser = 'Admin';
+        updateAuthUI();
+        return {ok: true};
+      }
+      return {ok: false, err: 'Invalid admin password'};
+    }
+
+    function loginAsUser(username, password){
+      if (password === window._userPassword) {
+        localStorage.setItem('_userToken', 'true');
+        localStorage.setItem('_adminToken', 'false');
+        localStorage.setItem('_currentUserName', username);
+        window._isAdmin = false;
+        window._currentUser = username;
+        updateAuthUI();
+        return {ok: true};
+      }
+      return {ok: false, err: 'Invalid username or password'};
+    }
+
+    function logout(){
+      localStorage.removeItem('_adminToken');
+      localStorage.removeItem('_userToken');
+      localStorage.removeItem('_currentUser');
+      localStorage.removeItem('_currentUserName');
+      window._isAdmin = false;
+      window._currentUser = null;
+      closeAdminPanel();
+      closeUserView();
+      closeAllLoginModals();
+      updateAuthUI();
+      location.reload();
+    }
+
+    function closeAllLoginModals(){
+      const modals = ['adminLoginModal', 'userLoginModal', 'userPanel'];
+      modals.forEach(id => {
+        const m = document.getElementById(id);
+        if (m) m.style.display = 'none';
+      });
+    }
+
+    function updateAuthUI(){
+      const authContainer = document.getElementById('authContainer');
+      if (!authContainer) return;
+      authContainer.innerHTML = '';
+      
+      if (isLoggedIn()) {
+        const info = document.createElement('div');
+        info.style.display = 'flex';
+        info.style.alignItems = 'center';
+        info.style.gap = '1rem';
+        info.style.color = '#fff';
+        info.style.fontSize = '0.9rem';
+        
+        const userLabel = document.createElement('span');
+        userLabel.textContent = `👤 ${window._currentUser}`;
+        info.appendChild(userLabel);
+        
+        const logoutBtn = document.createElement('button');
+        logoutBtn.textContent = 'Logout';
+        logoutBtn.style.padding = '0.4rem 0.8rem';
+        logoutBtn.style.background = '#dc3545';
+        logoutBtn.style.color = '#fff';
+        logoutBtn.style.border = 'none';
+        logoutBtn.style.borderRadius = '4px';
+        logoutBtn.style.cursor = 'pointer';
+        logoutBtn.style.fontSize = '0.85rem';
+        logoutBtn.onclick = logout;
+        info.appendChild(logoutBtn);
+        
+        authContainer.appendChild(info);
+      } else {
+        const btnContainer = document.createElement('div');
+        btnContainer.style.display = 'flex';
+        btnContainer.style.gap = '0.5rem';
+        
+        const adminBtn = document.createElement('button');
+        adminBtn.textContent = '⚙️ Admin';
+        adminBtn.style.padding = '0.4rem 0.8rem';
+        adminBtn.style.background = '#d4534f';
+        adminBtn.style.color = '#fff';
+        adminBtn.style.border = 'none';
+        adminBtn.style.borderRadius = '4px';
+        adminBtn.style.cursor = 'pointer';
+        adminBtn.style.fontSize = '0.85rem';
+        adminBtn.onclick = openAdminLogin;
+        btnContainer.appendChild(adminBtn);
+        
+        const userBtn = document.createElement('button');
+        userBtn.textContent = '👤 User Login';
+        userBtn.style.padding = '0.4rem 0.8rem';
+        userBtn.style.background = '#1e5e8a';
+        userBtn.style.color = '#fff';
+        userBtn.style.border = 'none';
+        userBtn.style.borderRadius = '4px';
+        userBtn.style.cursor = 'pointer';
+        userBtn.style.fontSize = '0.85rem';
+        userBtn.onclick = openUserLogin;
+        btnContainer.appendChild(userBtn);
+        
+        authContainer.appendChild(btnContainer);
+      }
+    }
+
+    function openAdminLogin(){
+      const modal = document.getElementById('adminLoginModal') || createAdminLoginModal();
+      closeAllLoginModals();
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function openUserLogin(){
+      const modal = document.getElementById('userLoginModal') || createUserLoginModal();
+      closeAllLoginModals();
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeAdminLogin(){
+      const modal = document.getElementById('adminLoginModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    function closeUserLogin(){
+      const modal = document.getElementById('userLoginModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    function openUserView(){
+      closeUserLogin();
+      alert('Welcome! You are now logged in. You can now book rooms using the form below.');
+    }
+
+    function closeUserView(){
+      // User view closed - user remains logged in
+    }
+
+    function openAdminPanel(){
+      // Admin panel removed: keep admin login flow but do not open any admin panel UI
+      if (!checkAdminStatus()) {
+        return openAdminLogin();
+      }
+      // Admin is logged in — panel removed, no further UI to show here.
+    }
+
+    function closeAdminPanel(){
+      // no-op: admin panel removed
+      return;
+    }
+
+    function createAdminLoginModal(){
+      const modal = document.createElement('div');
+      modal.id = 'adminLoginModal';
+      modal.style.display = 'none';
+      modal.style.position = 'fixed';
+      modal.style.inset = '0';
+      modal.style.background = 'rgba(0,0,0,0.7)';
+      modal.style.zIndex = '5000';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-hidden', 'true');
+
+      const content = document.createElement('div');
+      content.style.background = '#fff';
+      content.style.padding = '2rem';
+      content.style.borderRadius = '10px';
+      content.style.maxWidth = '400px';
+      content.style.width = '90%';
+      content.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+
+      const title = document.createElement('h2');
+      title.textContent = '⚙️ Admin Login';
+      title.style.marginBottom = '1rem';
+      title.style.color = '#2f4963';
+      content.appendChild(title);
+
+      const label = document.createElement('label');
+      label.textContent = 'Admin Password:';
+      label.style.display = 'block';
+      label.style.marginBottom = '0.5rem';
+      label.style.fontWeight = 'bold';
+      label.style.color = '#2f4963';
+      content.appendChild(label);
+
+      const input = document.createElement('input');
+      input.type = 'password';
+      input.id = 'adminPassword';
+      input.style.width = '100%';
+      input.style.padding = '0.75rem';
+      input.style.marginBottom = '1rem';
+      input.style.border = '1px solid #ccc';
+      input.style.borderRadius = '6px';
+      input.style.fontSize = '1rem';
+      content.appendChild(input);
+
+      const btnContainer = document.createElement('div');
+      btnContainer.style.display = 'flex';
+      btnContainer.style.gap = '1rem';
+      // Inline error message (replace default alert popup)
+      const errorMsg = document.createElement('div');
+      errorMsg.id = 'adminLoginError';
+      errorMsg.style.color = '#b00020';
+      errorMsg.style.fontSize = '0.9rem';
+      errorMsg.style.minHeight = '1.2rem';
+      errorMsg.style.marginBottom = '0.5rem';
+      content.appendChild(errorMsg);
+
+      const loginBtn = document.createElement('button');
+      loginBtn.textContent = 'Login';
+      loginBtn.style.flex = '1';
+      loginBtn.style.padding = '0.75rem';
+      loginBtn.style.background = '#d4534f';
+      loginBtn.style.color = '#fff';
+      loginBtn.style.border = 'none';
+      loginBtn.style.borderRadius = '6px';
+      loginBtn.style.cursor = 'pointer';
+      loginBtn.onclick = ()=>{
+        const pwd = input.value;
+        const res = loginAsAdmin(pwd);
+        if (res.ok) {
+          // clear any error and open admin panel without alert
+          errorMsg.textContent = '';
+          closeAdminLogin();
+          openAdminPanel();
+        } else {
+          // show inline error instead of alert
+          errorMsg.textContent = res.err || 'Invalid password';
+          input.focus();
+        }
+      };
+      btnContainer.appendChild(loginBtn);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.flex = '1';
+      cancelBtn.style.padding = '0.75rem';
+      cancelBtn.style.background = '#ccc';
+      cancelBtn.style.border = 'none';
+      cancelBtn.style.borderRadius = '6px';
+      cancelBtn.style.cursor = 'pointer';
+      cancelBtn.onclick = closeAdminLogin;
+      btnContainer.appendChild(cancelBtn);
+
+      content.appendChild(btnContainer);
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+      return modal;
+    }
+
+    function createUserLoginModal(){
+      const modal = document.createElement('div');
+      modal.id = 'userLoginModal';
+      modal.style.display = 'none';
+      modal.style.position = 'fixed';
+      modal.style.inset = '0';
+      modal.style.background = 'rgba(0,0,0,0.7)';
+      modal.style.zIndex = '5000';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-hidden', 'true');
+
+      const content = document.createElement('div');
+      content.style.background = '#fff';
+      content.style.padding = '2rem';
+      content.style.borderRadius = '10px';
+      content.style.maxWidth = '400px';
+      content.style.width = '90%';
+      content.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+
+      const title = document.createElement('h2');
+      title.textContent = '👤 User Login';
+      title.style.marginBottom = '1rem';
+      title.style.color = '#2f4963';
+      content.appendChild(title);
+
+      const usernameLabel = document.createElement('label');
+      usernameLabel.textContent = 'Username:';
+      usernameLabel.style.display = 'block';
+      usernameLabel.style.marginBottom = '0.5rem';
+      usernameLabel.style.fontWeight = 'bold';
+      usernameLabel.style.color = '#2f4963';
+      content.appendChild(usernameLabel);
+
+      const usernameInput = document.createElement('input');
+      usernameInput.type = 'text';
+      usernameInput.placeholder = 'Enter your name';
+      usernameInput.style.width = '100%';
+      usernameInput.style.padding = '0.75rem';
+      usernameInput.style.marginBottom = '1rem';
+      usernameInput.style.border = '1px solid #ccc';
+      usernameInput.style.borderRadius = '6px';
+      usernameInput.style.fontSize = '1rem';
+      content.appendChild(usernameInput);
+
+      const passwordLabel = document.createElement('label');
+      passwordLabel.textContent = 'Password:';
+      passwordLabel.style.display = 'block';
+      passwordLabel.style.marginBottom = '0.5rem';
+      passwordLabel.style.fontWeight = 'bold';
+      passwordLabel.style.color = '#2f4963';
+      content.appendChild(passwordLabel);
+
+      const passwordInput = document.createElement('input');
+      passwordInput.type = 'password';
+      passwordInput.placeholder = 'Enter password';
+      passwordInput.style.width = '100%';
+      passwordInput.style.padding = '0.75rem';
+      passwordInput.style.marginBottom = '1rem';
+      passwordInput.style.border = '1px solid #ccc';
+      passwordInput.style.borderRadius = '6px';
+      passwordInput.style.fontSize = '1rem';
+      content.appendChild(passwordInput);
+
+      const hint = document.createElement('p');
+      hint.textContent = 'Demo: Any username, password: user123';
+      hint.style.fontSize = '0.8rem';
+      hint.style.color = '#666';
+      hint.style.marginBottom = '1rem';
+      content.appendChild(hint);
+
+      const btnContainer = document.createElement('div');
+      btnContainer.style.display = 'flex';
+      btnContainer.style.gap = '1rem';
+
+      const loginBtn = document.createElement('button');
+      loginBtn.textContent = 'Login';
+      loginBtn.style.flex = '1';
+      loginBtn.style.padding = '0.75rem';
+      loginBtn.style.background = '#1e5e8a';
+      loginBtn.style.color = '#fff';
+      loginBtn.style.border = 'none';
+      loginBtn.style.borderRadius = '6px';
+      loginBtn.style.cursor = 'pointer';
+      loginBtn.onclick = ()=>{
+        const username = usernameInput.value;
+        const pwd = passwordInput.value;
+        if (!username) {
+          alert('Please enter a username');
+          return;
+        }
+        const res = loginAsUser(username, pwd);
+        if (res.ok) {
+          closeUserLogin();
+          openUserView();
+        } else {
+          alert(res.err);
+        }
+      };
+      btnContainer.appendChild(loginBtn);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.flex = '1';
+      cancelBtn.style.padding = '0.75rem';
+      cancelBtn.style.background = '#ccc';
+      cancelBtn.style.border = 'none';
+      cancelBtn.style.borderRadius = '6px';
+      cancelBtn.style.cursor = 'pointer';
+      cancelBtn.onclick = closeUserLogin;
+      btnContainer.appendChild(cancelBtn);
+
+      content.appendChild(btnContainer);
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+      return modal;
+    }
+
+
+
+    function createAdminPanel(){
+      // Admin panel removed. This function kept as a stub for compatibility.
+      return null;
+    }
+
+    function renderAdminCalendar(){
+      const container = document.getElementById('adminCalendarContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const select = document.getElementById('adminRoomSelect');
+      const category = select ? select.value : 'Basic-Burial';
+
+      const today = new Date();
+      let adminYear = parseInt(localStorage.getItem('_adminCalYear') || today.getFullYear(), 10);
+      let adminMonth = parseInt(localStorage.getItem('_adminCalMonth') || today.getMonth(), 10);
+
+      const date = new Date(adminYear, adminMonth, 1);
+      const monthName = date.toLocaleString(undefined, { month: 'long' });
+
+      const headerDiv = document.createElement('div');
+      headerDiv.style.display = 'flex';
+      headerDiv.style.justifyContent = 'space-between';
+      headerDiv.style.alignItems = 'center';
+      headerDiv.style.marginBottom = '1rem';
+
+      const prevBtn = document.createElement('button');
+      prevBtn.textContent = '← Prev';
+      prevBtn.style.padding = '0.5rem 1rem';
+      prevBtn.style.background = '#ccc';
+      prevBtn.style.border = 'none';
+      prevBtn.style.borderRadius = '4px';
+      prevBtn.style.cursor = 'pointer';
+      prevBtn.onclick = ()=>{
+        adminMonth--;
+        if (adminMonth < 0) { adminMonth = 11; adminYear--; }
+        localStorage.setItem('_adminCalYear', adminYear);
+        localStorage.setItem('_adminCalMonth', adminMonth);
+        renderAdminCalendar();
+      };
+      headerDiv.appendChild(prevBtn);
+
+      const monthLabel = document.createElement('h3');
+      monthLabel.textContent = `${monthName} ${adminYear}`;
+      monthLabel.style.color = '#2f4963';
+      headerDiv.appendChild(monthLabel);
+
+      const nextBtn = document.createElement('button');
+      nextBtn.textContent = 'Next →';
+      nextBtn.style.padding = '0.5rem 1rem';
+      nextBtn.style.background = '#ccc';
+      nextBtn.style.border = 'none';
+      nextBtn.style.borderRadius = '4px';
+      nextBtn.style.cursor = 'pointer';
+      nextBtn.onclick = ()=>{
+        adminMonth++;
+        if (adminMonth > 11) { adminMonth = 0; adminYear++; }
+        localStorage.setItem('_adminCalYear', adminYear);
+        localStorage.setItem('_adminCalMonth', adminMonth);
+        renderAdminCalendar();
+      };
+      headerDiv.appendChild(nextBtn);
+
+      container.appendChild(headerDiv);
+
+      const calGrid = document.createElement('div');
+      calGrid.style.display = 'grid';
+      calGrid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+      calGrid.style.gap = '8px';
+      calGrid.style.marginBottom = '1rem';
+
+      const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      weekdays.forEach(d => {
+        const h = document.createElement('div');
+        h.style.textAlign = 'center';
+        h.style.fontWeight = '600';
+        h.style.fontSize = '0.8rem';
+        h.textContent = d;
+        calGrid.appendChild(h);
+      });
+
+      const firstDay = new Date(adminYear, adminMonth, 1).getDay();
+      for(let i=0; i<firstDay; i++) {
+        calGrid.appendChild(document.createElement('div'));
+      }
+
+      const daysInMonth = new Date(adminYear, adminMonth+1, 0).getDate();
+      const bookings = _loadBookings();
+      const catBookings = bookings[category] || [];
+      const bookedSet = new Set(catBookings);
+
+      for(let d=1; d<=daysInMonth; d++){
+        const dayStr = `${adminYear}-${String(adminMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const isBooked = bookedSet.has(dayStr);
+
+        const cell = document.createElement('div');
+        cell.style.padding = '8px';
+        cell.style.textAlign = 'center';
+        cell.style.border = '1px solid #ccc';
+        cell.style.borderRadius = '4px';
+        cell.style.cursor = 'pointer';
+        cell.style.fontWeight = isBooked ? '600' : '400';
+        cell.style.background = isBooked ? '#d4534f' : '#e8f4f8';
+        cell.style.color = isBooked ? '#fff' : '#2f4963';
+        cell.style.transition = 'all 0.2s';
+        cell.textContent = d;
+
+        cell.onmouseover = () => { cell.style.transform = 'scale(1.05)'; cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)'; };
+        cell.onmouseout = () => { cell.style.transform = 'scale(1)'; cell.style.boxShadow = 'none'; };
+
+        cell.onclick = ()=>{
+          if (isBooked) {
+            if (confirm(`Remove booking for ${dayStr}?`)) {
+              // Remove from local storage immediately
+              const bookings = _loadBookings();
+              bookings[category] = (bookings[category] || []).filter(d => d !== dayStr);
+              _saveBookings(bookings);
+              
+              // Sync with Firestore if enabled (fire and forget)
+              if (window._useFirestore && window._firestoreReady) {
+                window._firestoreReady.then(()=>
+                  removeDatesFromFirestore(category, [dayStr])
+                ).catch(err => console.error('Firestore remove error', err));
+              }
+              
+              // Re-render with the new local state
+              renderAdminCalendar();
+            }
+          } else {
+            if (confirm(`Book ${dayStr} for ${category}?`)) {
+              const bookings = _loadBookings();
+              bookings[category] = bookings[category] || [];
+              if (bookings[category].indexOf(dayStr) === -1) {
+                bookings[category].push(dayStr);
+                bookings[category] = bookings[category].sort();
+              }
+              _saveBookings(bookings);
+              
+              // Sync with Firestore if enabled (fire and forget)
+              if (window._useFirestore && window._firestoreReady) {
+                const userId = ensureUserId();
+                window._firestoreReady.then(()=>{
+                  const ref = window._firestore.collection('bookings').doc(category);
+                  return window._firestore.runTransaction(tx => {
+                    return tx.get(ref).then(doc => {
+                      const currentBookings = (doc.exists && doc.data().bookings) ? doc.data().bookings : {};
+                      if (!currentBookings[dayStr]) {
+                        currentBookings[dayStr] = { userId, timestamp: new Date().toISOString() };
+                      }
+                      tx.set(ref, { bookings: currentBookings }, { merge: true });
+                      return true;
+                    });
+                  });
+                }).catch(err => console.error('Firestore add error', err));
+              }
+              
+              renderAdminCalendar();
+            }
+          }
+        };
+
+        calGrid.appendChild(cell);
+      }
+
+      container.appendChild(calGrid);
+
+      const info = document.createElement('p');
+      info.style.fontSize = '0.9rem';
+      info.style.color = '#666';
+      info.innerHTML = '<strong>Admin Controls:</strong><br>Click any date to toggle booking status. Booked dates are shown in red.';
+      container.appendChild(info);
     }
 
     // Call this on startup to ensure userId is ready
@@ -2939,7 +3524,7 @@
       if (!window._useFirestore || !window._firestore) return;
       try {
         const col = window._firestore.collection('bookings');
-        // Listen for any change and mirror to localStorage + refresh UI
+        // Listen for changes but only update localStorage, don't auto-refresh UI
         col.onSnapshot(snapshot => {
           const obj = {};
           snapshot.forEach(doc => {
@@ -2956,7 +3541,13 @@
             }
           });
           try { localStorage.setItem('room_bookings', JSON.stringify(obj)); } catch(e){}
-          try { renderBookingCalendar(); } catch(e){}
+          // When Firestore pushes updates, refresh the booking calendar for non-admins
+          // Admins perform local-first edits so we avoid forcing their UI to refresh
+          try {
+            if (!checkAdminStatus()) {
+              renderBookingCalendar();
+            }
+          } catch(e) { /* ignore render errors */ }
         }, err => console.error('Bookings listener error', err));
       } catch (e){ console.warn('startFirestoreListeners failed', e); }
     }
@@ -2988,47 +3579,20 @@
 
     // Remove specific dates from a category document in Firestore (only if current user booked them)
     function removeDatesFromFirestore(category, datesToRemove){
-      console.log('removeDatesFromFirestore called', { category, datesToRemove, useFirestore: window._useFirestore });
-       console.log('Firestore availability check - hasFirestore:', !!window._firestore, 'useFirestore:', window._useFirestore);
       if (!window._useFirestore || !window._firestore) return Promise.reject(new Error('Firestore not configured'));
-      const userId = ensureUserId();
-       console.log('ensureUserId returned:', userId);
       const ref = window._firestore.collection('bookings').doc(category);
-       console.log('Firestore transaction starting for ref:', ref.path, 'userId:', userId);
       return window._firestore.runTransaction(tx => {
-         console.log('Inside runTransaction callback');
         return tx.get(ref).then(doc => {
-           console.log('tx.get succeeded - doc.exists:', doc.exists);
-           if (doc.exists) {
-             console.log('Document exists, data:', doc.data());
-           } else {
-             console.log('Document does not exist');
-           }
           const currentBookings = (doc.exists && doc.data().bookings) ? doc.data().bookings : {};
-          console.log('Current bookings:', currentBookings);
-           console.log('Checking ownership for', datesToRemove.length, 'dates');
-          // Check ownership: only allow removal if current user booked the date
-          const unowned = datesToRemove.find(d => currentBookings[d] && currentBookings[d].userId !== userId);
-           if (unowned) {
-             console.log('Ownership check FAILED for date:', unowned, 'Expected userId:', userId, 'Actual userId:', currentBookings[unowned]?.userId);
-           } else {
-             console.log('Ownership check PASSED for all dates');
-           }
-          if (unowned) throw new Error('not-owner:' + unowned);
-          // Remove the dates
+          // Admin can remove any dates (no ownership check needed)
           const updated = { ...currentBookings };
           datesToRemove.forEach(d => delete updated[d]);
-          console.log('Updated bookings after removal:', updated);
-           console.log('About to call tx.set with merged data');
           tx.set(ref, { bookings: updated }, { merge: true });
-           console.log('tx.set called successfully');
           return Object.keys(updated).sort();
         });
       }).then(dateList => {
-        console.log('Transaction succeeded, remaining dates:', dateList);
         return {ok:true, dates: dateList};
       }).catch(err => {
-         console.error('Transaction error:', err.message || err, 'Full error:', err);
         return {ok:false, err: err && err.message ? err.message : String(err)};
       });
     }
@@ -3131,67 +3695,69 @@
         if (isBooked) { cell.setAttribute('aria-disabled','true'); }
         if (isBooked) {
           cell.classList.add('booked');
-          // meatball menu button (three-dot) that opens a small popup with actions
-          cell.style.position = cell.style.position || 'relative';
-          const mb = document.createElement('button');
-          mb.className = 'meatball-btn';
-          mb.type = 'button';
-          mb.setAttribute('aria-haspopup','true');
-          mb.setAttribute('aria-expanded','false');
-          mb.title = 'Options';
-          mb.textContent = '⋮';
-          mb.style.position = 'absolute';
-          mb.style.top = '6px';
-          mb.style.right = '6px';
-          mb.style.background = 'transparent';
-          mb.style.border = 'none';
-          mb.style.color = isBooked ? '#fff' : '#2f4963';
-          mb.style.fontSize = '1rem';
-          mb.style.cursor = 'pointer';
-          mb.style.padding = '2px 4px';
+          // Show admin-only meatball menu when an admin is logged in
+          if (checkAdminStatus()) {
+            cell.style.position = cell.style.position || 'relative';
+            const mb = document.createElement('button');
+            mb.className = 'meatball-btn';
+            mb.type = 'button';
+            mb.setAttribute('aria-haspopup','true');
+            mb.setAttribute('aria-expanded','false');
+            mb.title = 'Options';
+            mb.textContent = '⋮';
+            mb.style.position = 'absolute';
+            mb.style.top = '6px';
+            mb.style.right = '6px';
+            mb.style.background = 'transparent';
+            mb.style.border = 'none';
+            mb.style.color = '#fff';
+            mb.style.fontSize = '1rem';
+            mb.style.cursor = 'pointer';
+            mb.style.padding = '2px 4px';
 
-          const menu = document.createElement('div');
-          menu.className = 'cell-menu';
-          menu.style.display = 'none';
-          menu.style.position = 'absolute';
-          menu.style.top = '30px';
-          menu.style.right = '6px';
-          menu.style.flexDirection = 'column';
-          menu.style.background = '#fff';
-          menu.style.border = '1px solid #ccc';
-          menu.style.borderRadius = '6px';
-          menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
-          menu.style.zIndex = '2000';
-          menu.style.minWidth = '120px';
-          menu.style.overflow = 'hidden';
+            const menu = document.createElement('div');
+            menu.className = 'cell-menu';
+            menu.style.display = 'none';
+            menu.style.position = 'absolute';
+            menu.style.top = '30px';
+            menu.style.right = '6px';
+            menu.style.flexDirection = 'column';
+            menu.style.background = '#fff';
+            menu.style.border = '1px solid #ccc';
+            menu.style.borderRadius = '6px';
+            menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+            menu.style.zIndex = '2000';
+            menu.style.minWidth = '120px';
+            menu.style.overflow = 'hidden';
 
-          const optDel = document.createElement('button');
-          optDel.type = 'button';
-          optDel.textContent = 'Remove date';
-          optDel.style.padding = '8px';
-          optDel.style.textAlign = 'left';
-          optDel.style.background = 'transparent';
-          optDel.style.border = 'none';
-          optDel.style.cursor = 'pointer';
-          optDel.onclick = (ev)=>{ ev.stopPropagation(); if (confirm('Delete booking '+dayStr+'?')){ deleteBookedDate(dayStr, _bookingState.category); } menu.style.display='none'; mb.setAttribute('aria-expanded','false'); };
+            const optDel = document.createElement('button');
+            optDel.type = 'button';
+            optDel.textContent = 'Remove date';
+            optDel.style.padding = '8px';
+            optDel.style.textAlign = 'left';
+            optDel.style.background = 'transparent';
+            optDel.style.border = 'none';
+            optDel.style.cursor = 'pointer';
+            optDel.onclick = (ev)=>{ ev.stopPropagation(); if (confirm('Delete booking '+dayStr+'?')){ deleteBookedDate(dayStr, _bookingState.category); } menu.style.display='none'; mb.setAttribute('aria-expanded','false'); };
 
-          const optMove = document.createElement('button');
-          optMove.type = 'button';
-          optMove.textContent = 'Move date';
-          optMove.style.padding = '8px';
-          optMove.style.textAlign = 'left';
-          optMove.style.background = 'transparent';
-          optMove.style.border = 'none';
-          optMove.style.cursor = 'pointer';
-          optMove.onclick = (ev)=>{ ev.stopPropagation(); startMoveBooking(dayStr); menu.style.display='none'; mb.setAttribute('aria-expanded','false'); };
+            const optMove = document.createElement('button');
+            optMove.type = 'button';
+            optMove.textContent = 'Move date';
+            optMove.style.padding = '8px';
+            optMove.style.textAlign = 'left';
+            optMove.style.background = 'transparent';
+            optMove.style.border = 'none';
+            optMove.style.cursor = 'pointer';
+            optMove.onclick = (ev)=>{ ev.stopPropagation(); startMoveBooking(dayStr); menu.style.display='none'; mb.setAttribute('aria-expanded','false'); };
 
-          menu.appendChild(optDel);
-          menu.appendChild(optMove);
+            menu.appendChild(optDel);
+            menu.appendChild(optMove);
 
-          mb.onclick = (e)=>{ e.stopPropagation(); const open = mb.getAttribute('aria-expanded')==='true'; closeAllCellMenus(); if (!open) { menu.style.display='flex'; mb.setAttribute('aria-expanded','true'); } else { menu.style.display='none'; mb.setAttribute('aria-expanded','false'); } };
+            mb.onclick = (e)=>{ e.stopPropagation(); const open = mb.getAttribute('aria-expanded')==='true'; closeAllCellMenus(); if (!open) { menu.style.display='flex'; mb.setAttribute('aria-expanded','true'); } else { menu.style.display='none'; mb.setAttribute('aria-expanded','false'); } };
 
-          cell.appendChild(mb);
-          cell.appendChild(menu);
+            cell.appendChild(mb);
+            cell.appendChild(menu);
+          }
         }
         // mark today
         if (year===today.getFullYear() && month===today.getMonth() && d===today.getDate()) { cell.classList.add('today'); }
@@ -3602,60 +4168,31 @@
 
    function deleteBookedDate(dateStr, category){
   const cat = category || _bookingState.category;
-  console.log('Attempting to delete date:', dateStr, 'from category:', cat, 'passedCategory:', category);
+  
+  // Only admin can delete - remove this check if you want users to also delete
+  if (!checkAdminStatus()) {
+    alert('Only admin can remove bookings');
+    return;
+  }
 
-  // Optimistic local removal so UI is responsive even if Firestore is slow/unavailable
+  // Remove locally immediately (this is authoritative)
   try {
     const bookings = _loadBookings();
-    const before = (bookings[cat] || []).slice();
-    bookings[cat] = before.filter(d => d !== dateStr);
+    bookings[cat] = (bookings[cat] || []).filter(d => d !== dateStr);
     _saveBookings(bookings);
-    renderBookingCalendar();
   } catch (e) {
     console.error('Local removal failed', e);
   }
 
-  // If Firestore configured, attempt server-side removal and revert on ownership error
+  // Re-render with local state immediately
+  renderBookingCalendar();
+
+  // If Firestore configured, sync in background (fire and forget - do NOT wait or overwrite UI)
   if (window._useFirestore && window._firestoreReady) {
     window._firestoreReady.then(()=> {
-      console.log('Firestore ready, calling removeDatesFromFirestore', {cat, dateStr});
-      return removeDatesFromFirestore(cat, [dateStr]);
-    }).then(res=>{
-      console.log('removeDatesFromFirestore response:', res);
-      if (!res || !res.ok){
-        const msg = res && res.err ? res.err : 'unknown error';
-        // if not-owner, revert local deletion and notify user
-        if (typeof msg === 'string' && msg.indexOf('not-owner:')===0) {
-          try {
-            const bookings = _loadBookings();
-            bookings[cat] = bookings[cat] || [];
-            // re-add the date if it's missing
-            if (bookings[cat].indexOf(dateStr) === -1) bookings[cat].push(dateStr);
-            // keep sorted
-            bookings[cat] = bookings[cat].sort();
-            _saveBookings(bookings);
-            renderBookingCalendar();
-          } catch (e) { console.error('Failed to revert local deletion', e); }
-          return alert('You can only delete dates you booked. This date was booked by another user.');
-        }
-        // Other errors: notify and allow user to retry; keep optimistic removal
-        alert('Unable to remove booking from server: '+msg);
-        return;
-      }
-      // Success: server agrees. Ensure local state matches server state.
-      try{
-        const bookings = _loadBookings();
-        bookings[cat] = (res.dates || []).slice();
-        _saveBookings(bookings);
-        renderBookingCalendar();
-      }catch(e){ console.warn('Failed to sync local bookings after server delete', e); }
-    }).catch(err=>{ console.error('Firestore delete error', err); alert('Error deleting booking: ' + (err && err.message ? err.message : String(err))); });
-    return;
+      removeDatesFromFirestore(cat, [dateStr]);
+    }).catch(err=>{ console.error('Firestore delete error', err); });
   }
-
-  // No Firestore: optimistic local removal already applied
-  alert('Deleted booking '+dateStr);
-  try { closeBooking(); } catch(e){}
 }
 
     function startMoveBooking(dateStr){
@@ -4811,6 +5348,8 @@
 
     // --- Initialize Firestore for shared bookings across users ---
     document.addEventListener('DOMContentLoaded', function(){
+      ensureUserId();
+      updateAuthUI();
       const firebaseConfig = {
         apiKey: "AIzaSyCkucRBhTgRK63-A5YeMZhKHwTo_Upt_1c",
         authDomain: "solara-1c4d7.firebaseapp.com",
